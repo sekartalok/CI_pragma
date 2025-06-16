@@ -1,46 +1,47 @@
-name: GameMaker Windows Build CI (Bscotch)
-
-on:
+name: Continuous Integration for GX.Game Export
+on: 
   workflow_dispatch:
   workflow_call:
 
 jobs:
   build:
     runs-on: windows-2022
-
     steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
+      # Checkout the repo
+      - uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Find YYP file
-        id: find_yyp
+      # Find the .yyp file
+      - id: find_yyp
+        name: Find the yyp file
         run: |
-          $yyp = Get-ChildItem -Path "${{ github.workspace }}" -Recurse -Filter *.yyp | Select-Object -First 1
-          if (-not $yyp) {
-            Write-Error "❌ No .yyp file found!"
-            exit 1
-          }
-          echo "YYP file: $($yyp.FullName)"
-          echo "yyp-path=$($yyp.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $yyp = Get-ChildItem -Path ${{ github.workspace }} -Recurse -Filter *.yyp | Select-Object -First 1
+          Write-Output "YYP file found at: $yyp"
+          "yyp-path=$($yyp.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Setup Igor CLI (via Bscotch)
-        uses: bscotch/igor-setup@v2
+      # Setup Igor (CLI tool for GameMaker)
+      - name: use Igor Setup
+        uses: bscotch/igor-setup@v1
         id: igor
         with:
           target-yyp: ${{ steps.find_yyp.outputs.yyp-path }}
           access-key: ${{ secrets.ACCESS_KEY }}
 
-      - name: Build Game (via Bscotch)
+      # Run the build for Windows (GX.Game target)
+      - name: use Igor build (GX.Game)
         uses: bscotch/igor-build@v1
         id: build
         with:
           yyp-path: ${{ steps.find_yyp.outputs.yyp-path }}
           user-dir: ${{ steps.igor.outputs.user-dir }}
+          target: Windows
+          output: gx
 
-      - name: Upload Build Artifacts
+      # Upload the GX.Game build output
+      - name: upload GX.Game build
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
+          name: gxgame-build-windows
           path: ${{ steps.build.outputs.out-dir }}
+          retention-days: 1
