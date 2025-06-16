@@ -1,54 +1,46 @@
-name: Continuous Integration for Windows export
+name: GameMaker Windows Build CI (Bscotch)
 
 on:
-  # This line allows you to run the workflow manually from the GitHub Actions page
   workflow_dispatch:
-  # This line allows you to run the workflow from another workflow
   workflow_call:
 
 jobs:
   build:
     runs-on: windows-2022
+
     steps:
-      # Step 1: Check out the repository with the GameMaker project
-      - name: Checkout repository code
+      - name: Checkout project
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # Step 2: Find the .yyp file in the repository and save the path to an output
-      - id: find_yyp
-        name: Find the .yyp file
+      - name: Find YYP file
+        id: find_yyp
         run: |
-          $yyp = Get-ChildItem -Path ${{ github.workspace }} -Recurse -Filter *.yyp
-          Write-Output "YYP file found at: $yyp"
-          "yyp-path=$yyp" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $yyp = Get-ChildItem -Path "${{ github.workspace }}" -Recurse -Filter *.yyp | Select-Object -First 1
+          if (-not $yyp) {
+            Write-Error "❌ No .yyp file found!"
+            exit 1
+          }
+          echo "YYP file: $($yyp.FullName)"
+          echo "yyp-path=$($yyp.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      # Step 3: Set up the GameMaker build CLI tool Igor
-      # https://github.com/bscotch/igor-setup
-      - name: use Igor Setup
-        uses: bscotch/igor-setup@v1
+      - name: Setup Igor CLI (via Bscotch)
+        uses: bscotch/igor-setup@v2
         id: igor
         with:
           target-yyp: ${{ steps.find_yyp.outputs.yyp-path }}
           access-key: ${{ secrets.ACCESS_KEY }}
-          # ✅ FIX: Add your specific runtime version here
-          runtime-version: 2024.13.1.242
 
-      # Step 4: Use Igor to build the GameMaker project
-      # https://github.com/bscotch/igor-build
-      - name: use Igor build
+      - name: Build Game (via Bscotch)
         uses: bscotch/igor-build@v1
         id: build
         with:
           yyp-path: ${{ steps.find_yyp.outputs.yyp-path }}
           user-dir: ${{ steps.igor.outputs.user-dir }}
 
-      # Step 5: Upload the build to artifacts, so you can download it
-      - name: upload-build
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: igor-build-windows
+          name: windows-build
           path: ${{ steps.build.outputs.out-dir }}
-          # Note: Longer retention days can incur additional charges on some plans.
-          retention-days: 1
