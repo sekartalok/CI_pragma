@@ -1,41 +1,55 @@
 name: Continuous Integration for Windows export
-on: 
-  # push: #Uncomment this line to run the workflow on push
-  workflow_dispatch: #This line allows you to run the workflow manually from the GitHub Actions page
-  workflow_call: #This line allows you to run the workflow from another workflow
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
 jobs:
   build:
     runs-on: windows-2022
+
     steps:
-      # Check out the repository with the GameMaker project
-      - uses: actions/checkout@v4
+      # ✅ Step 1: Checkout the repository (including LFS assets)
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
         with:
           lfs: true
-      # This step finds the yyp file in the repository and saves the path to an output
+
+      # ✅ Step 2: Find the .yyp file in your project
       - id: find_yyp
-        name: Find the yyp file
+        name: 🔍 Find the .yyp file
+        shell: pwsh
         run: |
-          $yyp = Get-ChildItem -Path ${{ github.workspace }} -Recurse -Filter *.yyp
-          Write-Output "YYP file found at: $yyp"
-          "yyp-path=$yyp" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-      # This step sets up the GameMaker build CLI tool Igor https://github.com/bscotch/igor-setup
-      - name: use Igor Setup
+          $yyp = Get-ChildItem -Path ${{ github.workspace }} -Recurse -Filter *.yyp | Select-Object -First 1
+          if (-not $yyp) {
+            Write-Error "❌ No .yyp file found!"
+            exit 1
+          }
+          "yyp-path=$($yyp.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "✅ YYP found at $($yyp.FullName)"
+
+      # ✅ Step 3: Setup Igor CLI with Access Key
+      - name: 🧰 Setup Igor (Access Key)
         uses: bscotch/igor-setup@v1
         id: igor
         with:
           target-yyp: ${{ steps.find_yyp.outputs.yyp-path }}
-          access-key: ${{ secrets.ACCESS_KEY }} # 📝 To generate your Access Key, check out the Access Key section of the GameMaker Manual's Building via Command Line page: https://manual.gamemaker.io/monthly/en/#t=Settings%2FBuilding_via_Command_Line.htm
-      # This step uses Igor to build the GameMaker project https://github.com/bscotch/igor-build
-      - name: use Igor build
+          access-key: ${{ secrets.ACCESS_KEY }}
+
+      # ✅ Step 4: Build the Game
+      - name: 🛠️ Build Game
         uses: bscotch/igor-build@v1
         id: build
         with:
           yyp-path: ${{ steps.find_yyp.outputs.yyp-path }}
           user-dir: ${{ steps.igor.outputs.user-dir }}
-      # This step uploads the build to the artifacts, so you can download it from the GitHub Actions page or use it in another workflow
-      - name: upload-build
+          output-dir: build
+          runtime: Windows  # You can change to HTML5, macOS, etc.
+
+      # ✅ Step 5: Upload Build Output
+      - name: ⬆️ Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: igor-build-windows
           path: ${{ steps.build.outputs.out-dir }}
-          retention-days: 1 # Longer retention days can incur additional charges. See https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+          retention-days: 1
