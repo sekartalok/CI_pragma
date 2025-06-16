@@ -9,13 +9,13 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      # ✅ Step 1: Checkout the repository (including LFS assets)
+      # ✅ Step 1: Checkout the repository (with LFS)
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # ✅ Step 2: Find the .yyp file in your project
+      # ✅ Step 2: Find the .yyp file automatically
       - id: find_yyp
         name: 🔍 Find the .yyp file
         shell: pwsh
@@ -26,27 +26,27 @@ jobs:
             exit 1
           }
           "yyp-path=$($yyp.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Output "✅ YYP found at $($yyp.FullName)"
+          Write-Host "✅ Found YYP at $($yyp.FullName)"
 
-      # ✅ Step 3: Setup Igor CLI with Access Key
-      - name: 🧰 Setup Igor (Access Key)
-        uses: bscotch/igor-setup@v1
+      # ✅ Step 3: Set up Igor using Access Key only
+      - name: 🧰 Setup Igor with Access Key
+        uses: bscotch/igor-setup@v2
         id: igor
         with:
-          target-yyp: ${{ steps.find_yyp.outputs.yyp-path }}
           access-key: ${{ secrets.ACCESS_KEY }}
+          gm-version: stable  # Optional: you can specify version like 2024.5.0.10
 
-      # ✅ Step 4: Build the Game
-      - name: 🛠️ Build Game
+      # ✅ Step 4: Build the game
+      - name: 🛠️ Build Game Project (Windows)
         uses: bscotch/igor-build@v1
         id: build
         with:
           yyp-path: ${{ steps.find_yyp.outputs.yyp-path }}
           user-dir: ${{ steps.igor.outputs.user-dir }}
           output-dir: build
-          runtime: Windows  # You can change to HTML5, macOS, etc.
+          runtime: Windows
 
-      # ✅ Step 5: Upload Build Output
+      # ✅ Step 5: Upload the build artifacts
       - name: ⬆️ Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
